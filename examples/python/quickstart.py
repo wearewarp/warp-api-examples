@@ -33,6 +33,9 @@ def quote_ltl(api_key: str) -> dict:
             "pallets": 2,
             "weight_lbs_per_pallet": 800,
             "commodity": "auto parts",
+            "length_in": 48,
+            "width_in": 40,
+            "height_in": 48,
         },
         timeout=30,
     )

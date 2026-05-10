@@ -26,7 +26,10 @@ curl -X POST https://www.wearewarp.com/api/v1/ltl/quote \
     "pickup_date": "2026-05-15",
     "pallets": 2,
     "weight_lbs_per_pallet": 800,
-    "commodity": "auto parts"
+    "commodity": "auto parts",
+    "length_in": 48,
+    "width_in": 40,
+    "height_in": 48
   }'
 
 # Response includes a quote_id. Pass it to POST /book to confirm.

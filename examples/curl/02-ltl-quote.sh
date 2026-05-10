@@ -17,5 +17,8 @@ curl -fsS -X POST https://www.wearewarp.com/api/v1/ltl/quote \
     \"pickup_date\": \"$PICKUP_DATE\",
     \"pallets\": 2,
     \"weight_lbs_per_pallet\": 800,
-    \"commodity\": \"auto parts\"
+    \"commodity\": \"auto parts\",
+    \"length_in\": 48,
+    \"width_in\": 40,
+    \"height_in\": 48
   }"

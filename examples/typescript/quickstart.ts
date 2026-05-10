@@ -69,6 +69,9 @@ async function main(): Promise<void> {
     pallets: 2,
     weight_lbs_per_pallet: 800,
     commodity: 'auto parts',
+    length_in: 48,
+    width_in: 40,
+    height_in: 48,
   });
   console.log(`Quote: ${quote.quote_id} — $${quote.price_usd} (${quote.transit_days ?? '?'} days, ${quote.quote_tier} tier)`);
 
