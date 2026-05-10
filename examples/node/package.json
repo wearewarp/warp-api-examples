@@ -1,0 +1,14 @@
+{
+  "name": "warp-api-node-quickstart",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Node.js quickstart for the Warp Freight API. Native fetch, no dependencies.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node quickstart.mjs"
+  },
+  "license": "Apache-2.0"
+}

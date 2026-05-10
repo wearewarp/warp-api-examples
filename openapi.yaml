@@ -1,0 +1,1262 @@
+openapi: 3.1.0
+info:
+  title: Warp Agent API
+  version: 1.2.0
+  description: Programmatic freight quoting, booking, tracking, invoicing, and document retrieval for AI agents and integrations.
+    Supports cargo van, box truck, FTL, LTL, and FTL multi-stop modes.
+servers:
+- url: https://www.wearewarp.com/api/v1
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: 'API key issued via scripts/issue-agent-key.ts. Format: wak_live_*'
+  schemas:
+    QuoteResponse:
+      type: object
+      properties:
+        quote_id:
+          type: string
+          example: wq_01JRKZ...
+        lane_id:
+          type: string
+          example: ln_900_941
+        mode:
+          type: string
+          enum:
+          - van
+          - box_truck
+          - ftl
+          - ltl
+        price_usd:
+          type: number
+          example: 1450
+        currency:
+          type: string
+          example: USD
+        transit_days:
+          type: integer
+          example: 2
+        pickup_date:
+          type: string
+          format: date
+        delivery_date:
+          type: string
+          format: date
+        expires_at:
+          type: string
+          format: date-time
+        quote_tier:
+          type: string
+          enum:
+          - firm
+          - indicative
+          description: firm = all fields present, indicative = missing some fields (LTL only)
+        service:
+          type: object
+          description: Service details included with every quote and booking response.
+          properties:
+            mode:
+              type: string
+              enum:
+              - van
+              - box_truck
+              - ftl
+              - ltl
+            vehicle:
+              type: string
+              enum:
+              - Cargo van
+              - 26' box truck
+              - 53' dry van
+              - LTL (shared)
+            pickup_date:
+              type: string
+              format: date
+            delivery_date:
+              type: string
+              format: date
+            transit_days:
+              type: integer
+            pricing:
+              type: string
+              example: all_inclusive
+            included_at_no_charge:
+              type: array
+              items:
+                type: string
+            dispatch:
+              type: string
+              example: +1 213 267 1373
+        assumptions:
+          type: object
+        missing_for_ship:
+          type: array
+          items:
+            type: string
+        booking_url:
+          type: string
+        book_tool_call:
+          type: object
+          properties:
+            tool:
+              type: string
+            args:
+              type: object
+              properties:
+                quote_id:
+                  type: string
+    BookingResponse:
+      type: object
+      properties:
+        booked:
+          type: boolean
+          example: true
+        shipment_id:
+          type: string
+        shipment_number:
+          type: string
+        tracking_number:
+          type: string
+        lane_id:
+          type: string
+        service:
+          type: object
+          description: Service details included with every quote and booking response.
+          properties:
+            mode:
+              type: string
+              enum:
+              - van
+              - box_truck
+              - ftl
+              - ltl
+            vehicle:
+              type: string
+              enum:
+              - Cargo van
+              - 26' box truck
+              - 53' dry van
+              - LTL (shared)
+            pickup_date:
+              type: string
+              format: date
+            delivery_date:
+              type: string
+              format: date
+            transit_days:
+              type: integer
+            pricing:
+              type: string
+              example: all_inclusive
+            included_at_no_charge:
+              type: array
+              items:
+                type: string
+            dispatch:
+              type: string
+              example: +1 213 267 1373
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+        details: {}
+    ServiceBlock:
+      type: object
+      description: Service details included with every quote and booking response.
+      properties:
+        mode:
+          type: string
+          enum:
+          - van
+          - box_truck
+          - ftl
+          - ltl
+        vehicle:
+          type: string
+          enum:
+          - Cargo van
+          - 26' box truck
+          - 53' dry van
+          - LTL (shared)
+        pickup_date:
+          type: string
+          format: date
+        delivery_date:
+          type: string
+          format: date
+        transit_days:
+          type: integer
+        pricing:
+          type: string
+          example: all_inclusive
+        included_at_no_charge:
+          type: array
+          items:
+            type: string
+        dispatch:
+          type: string
+          example: +1 213 267 1373
+    Accessorials:
+      type: object
+      description: Optional pickup and delivery accessorial services.
+      properties:
+        pickup:
+          type: array
+          items:
+            type: string
+            enum:
+            - liftgate-pickup
+            - inside-pickup
+            - residential-pickup
+            - limited-access-pickup
+            - pickup-appointment
+        delivery:
+          type: array
+          items:
+            type: string
+            enum:
+            - liftgate-delivery
+            - inside-delivery
+            - residential-delivery
+            - limited-access-delivery
+            - delivery-appointment
+paths:
+  /van/quote:
+    post:
+      summary: Get a cargo van quote
+      operationId: vanQuote
+      tags:
+      - Quoting
+      description: All fields required. Max 3 pallets, max 3,500 lbs total.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - origin_zip
+              - destination_zip
+              - pallets
+              - weight_lbs_per_pallet
+              - pickup_date
+              properties:
+                origin_zip:
+                  type: string
+                  example: '90012'
+                  description: 5-digit US ZIP code
+                destination_zip:
+                  type: string
+                  example: '94105'
+                  description: 5-digit US ZIP code
+                pallets:
+                  type: integer
+                  example: 2
+                  description: 1-3 max for cargo van
+                weight_lbs_per_pallet:
+                  type: integer
+                  example: 800
+                  description: Total can't exceed 3,500 lbs
+                pickup_date:
+                  type: string
+                  format: date
+                  example: '2026-04-15'
+                accessorials:
+                  type: object
+                  description: Optional pickup and delivery accessorial services.
+                  properties:
+                    pickup:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                        - liftgate-pickup
+                        - inside-pickup
+                        - residential-pickup
+                        - limited-access-pickup
+                        - pickup-appointment
+                    delivery:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                        - liftgate-delivery
+                        - inside-delivery
+                        - residential-delivery
+                        - limited-access-delivery
+                        - delivery-appointment
+      responses:
+        '200':
+          description: Firm quote returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteResponse'
+        '400':
+          description: Validation error (missing fields, weight exceeded, etc.)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Upstream error
+  /box-truck/quote:
+    post:
+      summary: Get a 26ft box truck quote
+      operationId: boxTruckQuote
+      tags:
+      - Quoting
+      description: All fields required. Max 12 pallets, max 10,000 lbs total.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - origin_zip
+              - destination_zip
+              - pallets
+              - weight_lbs_per_pallet
+              - pickup_date
+              properties:
+                origin_zip:
+                  type: string
+                  example: '90012'
+                  description: 5-digit US ZIP code
+                destination_zip:
+                  type: string
+                  example: '94105'
+                  description: 5-digit US ZIP code
+                pallets:
+                  type: integer
+                  example: 6
+                  description: 1-12 max for box truck
+                weight_lbs_per_pallet:
+                  type: integer
+                  example: 800
+                  description: Total can't exceed 10,000 lbs
+                pickup_date:
+                  type: string
+                  format: date
+                  example: '2026-04-15'
+                accessorials:
+                  type: object
+                  description: Optional pickup and delivery accessorial services.
+                  properties:
+                    pickup:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                        - liftgate-pickup
+                        - inside-pickup
+                        - residential-pickup
+                        - limited-access-pickup
+                        - pickup-appointment
+                    delivery:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                        - liftgate-delivery
+                        - inside-delivery
+                        - residential-delivery
+                        - limited-access-delivery
+                        - delivery-appointment
+      responses:
+        '200':
+          description: Firm quote returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteResponse'
+        '400':
+          description: Validation error
+        '502':
+          description: Upstream error
+  /ftl/quote:
+    post:
+      summary: Get a 53ft dry van FTL quote
+      operationId: ftlQuote
+      tags:
+      - Quoting
+      description: Only origin_zip, destination_zip, and pickup_date are required. Pallets and weight are optional (you're
+        buying the whole truck).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - origin_zip
+              - destination_zip
+              - pickup_date
+              properties:
+                origin_zip:
+                  type: string
+                  example: '90012'
+                  description: 5-digit US ZIP code
+                destination_zip:
+                  type: string
+                  example: '94105'
+                  description: 5-digit US ZIP code
+                pickup_date:
+                  type: string
+                  format: date
+                  example: '2026-04-15'
+                pallets:
+                  type: integer
+                  example: 20
+                  description: Optional -- doesn't affect FTL price
+                weight_lbs_per_pallet:
+                  type: integer
+                  example: 1200
+                  description: Optional -- doesn't affect FTL price
+                accessorials:
+                  type: object
+                  description: Optional pickup and delivery accessorial services.
+                  properties:
+                    pickup:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                        - liftgate-pickup
+                        - inside-pickup
+                        - residential-pickup
+                        - limited-access-pickup
+                        - pickup-appointment
+                    delivery:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                        - liftgate-delivery
+                        - inside-delivery
+                        - residential-delivery
+                        - limited-access-delivery
+                        - delivery-appointment
+      responses:
+        '200':
+          description: Firm quote returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteResponse'
+        '400':
+          description: Validation error
+        '502':
+          description: Upstream error
+  /ltl/quote:
+    post:
+      summary: Get an LTL quote (firm when all fields present, indicative otherwise)
+      operationId: ltlQuote
+      tags:
+      - Quoting
+      description: Requires dims (length_in, width_in, height_in) unless using a load_template_id. Returns quote_tier 'firm'
+        when all fields present, 'indicative' when some are missing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - origin_zip
+              - destination_zip
+              - pallets
+              - weight_lbs_per_pallet
+              - commodity
+              - pickup_date
+              properties:
+                origin_zip:
+                  type: string
+                  example: '90012'
+                destination_zip:
+                  type: string
+                  example: '94105'
+                pallets:
+                  type: integer
+                  example: 6
+                pickup_date:
+                  type: string
+                  format: date
+                  example: '2026-04-15'
+                weight_lbs_per_pallet:
+                  type: integer
+                  example: 800
+                freight_class:
+                  type: string
+                  example: '85'
+                  description: Optional. Warp uses FAK (Freight All Kinds) rates -- class doesn't affect pricing. Include
+                    for BOL documentation if known.
+                commodity:
+                  type: string
+                  example: auto parts
+                length_in:
+                  type: integer
+                  example: 48
+                  description: Required when not using a template
+                width_in:
+                  type: integer
+                  example: 40
+                  description: Required when not using a template
+                height_in:
+                  type: integer
+                  example: 48
+                  description: Required when not using a template
+                stackable:
+                  type: boolean
+                  example: false
+                hazmat:
+                  type: boolean
+                  example: false
+                load_template_id:
+                  type: string
+                  example: lt_01JRKZ...
+                  description: Alternative to providing weight/dims/class directly
+                pallet_count:
+                  type: integer
+                  example: 6
+                accessorials:
+                  type: object
+                  description: Optional pickup and delivery accessorial services.
+                  properties:
+                    pickup:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                        - liftgate-pickup
+                        - inside-pickup
+                        - residential-pickup
+                        - limited-access-pickup
+                        - pickup-appointment
+                    delivery:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                        - liftgate-delivery
+                        - inside-delivery
+                        - residential-delivery
+                        - limited-access-delivery
+                        - delivery-appointment
+      responses:
+        '200':
+          description: Quote returned (check quote_tier and missing_for_ship)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteResponse'
+        '400':
+          description: Validation error or missing dims
+        '502':
+          description: Upstream error
+  /book:
+    post:
+      summary: Book a quoted shipment
+      operationId: book
+      tags:
+      - Booking
+      security:
+      - bearerAuth: []
+      description: Delivery address is required when no lane_history exists for this lane+agent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - quote_id
+              properties:
+                quote_id:
+                  type: string
+                  example: wq_01JRKZ...
+                accessorials:
+                  type: object
+                  description: Optional pickup and delivery accessorial services.
+                  properties:
+                    pickup:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                        - liftgate-pickup
+                        - inside-pickup
+                        - residential-pickup
+                        - limited-access-pickup
+                        - pickup-appointment
+                    delivery:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                        - liftgate-delivery
+                        - inside-delivery
+                        - residential-delivery
+                        - limited-access-delivery
+                        - delivery-appointment
+                reference:
+                  type: string
+                  description: PO number or external reference
+                  example: PO-12345
+                patch:
+                  type: object
+                  properties:
+                    pickup:
+                      type: object
+                      properties:
+                        zipCode:
+                          type: string
+                        city:
+                          type: string
+                        state:
+                          type: string
+                        street:
+                          type: string
+                        contactName:
+                          type: string
+                        phone:
+                          type: string
+                        email:
+                          type: string
+                        specialInstruction:
+                          type: string
+                    delivery:
+                      type: object
+                      properties:
+                        zipCode:
+                          type: string
+                        city:
+                          type: string
+                        state:
+                          type: string
+                        street:
+                          type: string
+                        contactName:
+                          type: string
+                        phone:
+                          type: string
+                        email:
+                          type: string
+                        specialInstruction:
+                          type: string
+                    notes:
+                      type: string
+      responses:
+        '200':
+          description: Booking confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '400':
+          description: Invalid input, expired quote, or missing delivery address
+        '401':
+          description: Auth failure
+        '502':
+          description: Upstream booking error
+  /rebook:
+    post:
+      summary: Re-quote and book a previously shipped lane in one call
+      operationId: rebook
+      tags:
+      - Booking
+      security:
+      - bearerAuth: []
+      description: pickup_date is required. Accessorials and reference are optional.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - lane_id
+              - pickup_date
+              properties:
+                lane_id:
+                  type: string
+                  example: ln_900_941
+                pickup_date:
+                  type: string
+                  format: date
+                  example: '2026-04-15'
+                pallet_count:
+                  type: integer
+                accessorials:
+                  type: object
+                  description: Optional pickup and delivery accessorial services.
+                  properties:
+                    pickup:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                        - liftgate-pickup
+                        - inside-pickup
+                        - residential-pickup
+                        - limited-access-pickup
+                        - pickup-appointment
+                    delivery:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                        - liftgate-delivery
+                        - inside-delivery
+                        - residential-delivery
+                        - limited-access-delivery
+                        - delivery-appointment
+                reference:
+                  type: string
+                  description: PO number or external reference
+                  example: PO-12345
+      responses:
+        '200':
+          description: Rebook confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BookingResponse'
+        '401':
+          description: Auth failure
+        '404':
+          description: Lane not found
+        '502':
+          description: Upstream error
+  /load_templates:
+    get:
+      summary: List saved load templates
+      operationId: listLoadTemplates
+      tags:
+      - Templates
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Template list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templates:
+                    type: array
+                    items:
+                      type: object
+        '401':
+          description: Auth failure
+    post:
+      summary: Create a load template
+      operationId: createLoadTemplate
+      tags:
+      - Templates
+      security:
+      - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - name
+              - weight_lbs
+              - length_in
+              - width_in
+              - height_in
+              properties:
+                name:
+                  type: string
+                  example: Standard Pallet
+                weight_lbs:
+                  type: integer
+                  example: 1200
+                length_in:
+                  type: integer
+                  example: 48
+                width_in:
+                  type: integer
+                  example: 40
+                height_in:
+                  type: integer
+                  example: 48
+                freight_class:
+                  type: string
+                  example: '85'
+                commodity:
+                  type: string
+                  example: auto parts
+                stackable:
+                  type: boolean
+                hazmat:
+                  type: boolean
+      responses:
+        '201':
+          description: Template created
+        '400':
+          description: Validation error
+        '401':
+          description: Auth failure
+    delete:
+      summary: Delete a load template
+      operationId: deleteLoadTemplate
+      tags:
+      - Templates
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: id
+        in: query
+        required: true
+        schema:
+          type: string
+        example: lt_01JRKZ...
+      responses:
+        '204':
+          description: Deleted
+        '401':
+          description: Auth failure
+  /locations:
+    get:
+      summary: List cached locations for the agent
+      operationId: listLocations
+      tags:
+      - Memory
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Location list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  locations:
+                    type: array
+                    items:
+                      type: object
+        '401':
+          description: Auth failure
+  /lanes:
+    get:
+      summary: List lane history ordered by ship count
+      operationId: listLanes
+      tags:
+      - Memory
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Lane history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  lanes:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        lane_id:
+                          type: string
+                        ship_count:
+                          type: integer
+                        last_shipped_at:
+                          type: string
+                          format: date-time
+                        last_consignee:
+                          type: object
+                        last_pallet_count:
+                          type: integer
+        '401':
+          description: Auth failure
+  /version:
+    get:
+      summary: API version and build info
+      operationId: version
+      tags:
+      - Meta
+      responses:
+        '200':
+          description: Version info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api:
+                    type: string
+                    example: v1
+                  commit:
+                    type: string
+                  built_at:
+                    type: string
+                    format: date-time
+  /openapi.json:
+    get:
+      summary: This OpenAPI specification
+      operationId: openApiSpec
+      tags:
+      - Meta
+      responses:
+        '200':
+          description: OpenAPI 3.1 JSON
+  /track:
+    get:
+      summary: Track a booked shipment
+      operationId: track
+      tags:
+      - Lifecycle
+      security:
+      - bearerAuth: []
+      description: Returns the local booking row + live upstream tracking status + event history.
+      parameters:
+      - name: booking_id
+        in: query
+        required: true
+        schema:
+          type: string
+        example: shp_...
+      responses:
+        '200':
+          description: Tracking response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  shipment_id:
+                    type: string
+                  status:
+                    type: string
+                    enum:
+                    - booked
+                    - in_transit
+                    - delivered
+                    - cancelled
+                  tracking_dashboard:
+                    type: string
+                  upstream_tracking:
+                    type: object
+                  events:
+                    type: object
+        '401':
+          description: Auth failure
+        '404':
+          description: Booking not found
+  /bookings:
+    get:
+      summary: List recent bookings, newest first
+      operationId: listBookings
+      tags:
+      - Lifecycle
+      security:
+      - bearerAuth: []
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 25
+          maximum: 100
+      responses:
+        '200':
+          description: Booking list with optional upstream shipments data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bookings:
+                    type: array
+                    items:
+                      type: object
+                  count:
+                    type: integer
+                  limit:
+                    type: integer
+                  upstream_shipments:
+                    type: object
+        '401':
+          description: Auth failure
+  /cancel:
+    post:
+      summary: Cancel a booking before pickup
+      operationId: cancel
+      tags:
+      - Lifecycle
+      security:
+      - bearerAuth: []
+      description: Marks the local booking cancelled, refunds Stripe (if a charge was made), and best-effort calls upstream
+        cancel.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - booking_id
+              properties:
+                booking_id:
+                  type: string
+                  description: shipment_id from book response
+      responses:
+        '200':
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cancelled:
+                    type: boolean
+                  shipment_id:
+                    type: string
+                  upstream_cancel:
+                    type: object
+                  refund:
+                    type: object
+        '401':
+          description: Auth failure
+        '404':
+          description: Booking not found
+        '409':
+          description: Already cancelled
+  /rate-card:
+    get:
+      summary: Standard mode rate card + your historical pricing per mode
+      operationId: rateCard
+      tags:
+      - Pricing
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Rate card
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pricing:
+                    type: string
+                    example: all_inclusive
+                  currency:
+                    type: string
+                    example: USD
+                  quote_validity_minutes:
+                    type: integer
+                    example: 15
+                  promo_code:
+                    type: object
+                  modes:
+                    type: array
+                    items:
+                      type: object
+        '401':
+          description: Auth failure
+  /events:
+    get:
+      summary: Get the full tracking event history for a shipment
+      operationId: events
+      tags:
+      - Lifecycle
+      security:
+      - bearerAuth: []
+      description: Proxies upstream /freights/events/{shipmentId}.
+      parameters:
+      - name: shipment_id
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Event history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  shipment_id:
+                    type: string
+                  events:
+                    type: object
+        '401':
+          description: Auth failure
+        '502':
+          description: Upstream error
+  /invoices:
+    get:
+      summary: Retrieve invoice for a shipment
+      operationId: invoice
+      tags:
+      - Lifecycle
+      security:
+      - bearerAuth: []
+      description: Proxies upstream /freights/invoices/{orderId}.
+      parameters:
+      - name: order_id
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Invoice
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order_id:
+                    type: string
+                  invoice:
+                    type: object
+        '401':
+          description: Auth failure
+        '502':
+          description: Upstream error
+  /documents:
+    get:
+      summary: List shipment documents (BOL, POD, customs)
+      operationId: documents
+      tags:
+      - Lifecycle
+      security:
+      - bearerAuth: []
+      description: Proxies upstream /freights/documents/{orderId}.
+      parameters:
+      - name: order_id
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Document list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order_id:
+                    type: string
+                  documents:
+                    type: object
+        '401':
+          description: Auth failure
+        '502':
+          description: Upstream error
+  /quote-history:
+    get:
+      summary: List your past quote requests
+      operationId: quoteHistory
+      tags:
+      - Memory
+      security:
+      - bearerAuth: []
+      responses:
+        '200':
+          description: Quote history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quote_history:
+                    type: object
+        '401':
+          description: Auth failure
+        '502':
+          description: Upstream error
+  /multistop/quote:
+    post:
+      summary: Quote an FTL multi-stop shipment
+      operationId: multistopQuote
+      tags:
+      - Multi-stop
+      security:
+      - bearerAuth: []
+      description: Body forwarded to upstream /freights/quote/multi-stops.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - pickup_date
+              - stops
+              properties:
+                pickup_date:
+                  type: string
+                  format: date
+                stops:
+                  type: array
+                  items:
+                    type: object
+                total_pallets:
+                  type: integer
+                total_weight_lbs:
+                  type: integer
+                vehicle_type:
+                  type: string
+      responses:
+        '200':
+          description: Multi-stop quote returned
+        '401':
+          description: Auth failure
+        '502':
+          description: Upstream error
+  /multistop/book:
+    post:
+      summary: Book a quoted multi-stop FTL shipment
+      operationId: multistopBook
+      tags:
+      - Multi-stop
+      security:
+      - bearerAuth: []
+      description: Body forwarded to upstream /freights/booking/multi-stops.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - quote_id
+              - stops
+              properties:
+                quote_id:
+                  type: string
+                stops:
+                  type: array
+                  items:
+                    type: object
+                reference:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Multi-stop booking confirmed
+        '401':
+          description: Auth failure
+        '502':
+          description: Upstream error

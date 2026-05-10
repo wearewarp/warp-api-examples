@@ -1,0 +1,75 @@
+name: validate-openapi
+
+on:
+  schedule:
+    # Daily at 14:00 UTC (07:00 PT)
+    - cron: '0 14 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'openapi.yaml'
+      - 'examples/**'
+      - '.github/workflows/validate-openapi.yml'
+
+jobs:
+  validate-spec:
+    name: validate openapi.yaml against production
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Fetch live OpenAPI spec
+        run: curl -fsS https://www.wearewarp.com/api/v1/openapi.json -o live.json
+
+      - name: Compare path lists
+        run: |
+          yq -o=json '.' openapi.yaml | jq -S '.paths | keys' > local-paths.json
+          jq -S '.paths | keys' live.json > live-paths.json
+          if ! diff -u local-paths.json live-paths.json; then
+            echo "::warning::openapi.yaml path list drifted from production. Re-mirror with: curl https://www.wearewarp.com/api/v1/openapi.json | yq -P > openapi.yaml"
+            exit 1
+          fi
+          echo "Path list matches production."
+
+  parse-examples:
+    name: every example file parses
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint bash scripts
+        run: |
+          sudo apt-get install -y shellcheck
+          shellcheck examples/curl/*.sh
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile Python examples
+        run: python -m py_compile examples/python/*.py
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Parse Node example
+        run: node --check examples/node/quickstart.mjs
+
+      - name: TypeScript typecheck
+        run: |
+          cd examples/typescript
+          npm install --no-audit --no-fund
+          npx tsc --noEmit
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Build Go example
+        run: cd examples/go && go build ./...
