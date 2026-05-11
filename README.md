@@ -4,6 +4,7 @@ Code samples and the OpenAPI 3.1 spec for the [Warp Freight API](https://www.wea
 
 - **Live API docs:** https://www.wearewarp.com/freight-api
 - **OpenAPI 3.1 spec:** [`openapi.yaml`](./openapi.yaml) (mirrored from production)
+- **Postman collection:** [`postman/warp-freight-api.postman_collection.json`](./postman/warp-freight-api.postman_collection.json) — drag-and-drop import into Postman, Insomnia, or Bruno
 - **Sandbox keys:** free, instant, no card. Sign up at https://www.wearewarp.com/agents/account
 - **MCP server for AI agents:** [`warp-agent-mcp`](https://www.npmjs.com/package/warp-agent-mcp)
 - **CLI:** [`@warpfreight/cli-agent`](https://www.npmjs.com/package/@warpfreight/cli-agent)
@@ -40,6 +41,7 @@ curl -X POST https://www.wearewarp.com/api/v1/ltl/quote \
 | Path | What it is |
 |---|---|
 | [`openapi.yaml`](./openapi.yaml) | OpenAPI 3.1 spec, mirrored from production |
+| [`postman/warp-freight-api.postman_collection.json`](./postman/warp-freight-api.postman_collection.json) | Postman collection v2.1.0 — drag-and-drop import into Postman, Insomnia, or Bruno. Generated from `openapi.yaml` via `npx openapi-to-postmanv2`. |
 | [`examples/curl/`](./examples/curl) | bash + curl quickstarts: sandbox key, quote, book, track |
 | [`examples/python/`](./examples/python) | Python via `requests`, end-to-end quote → book → track |
 | [`examples/node/`](./examples/node) | Node.js (≥18) using native `fetch`, no dependencies |
