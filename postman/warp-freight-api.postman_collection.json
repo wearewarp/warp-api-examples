@@ -3997,6 +3997,11 @@
         {
             "key": "baseUrl",
             "value": "https://www.wearewarp.com/api/v1"
+        },
+        {
+            "key": "warpApiKey",
+            "value": "wak_test_REPLACE_ME",
+            "type": "string"
         }
     ],
     "info": {
@@ -4007,5 +4012,15 @@
             "content": "Programmatic freight quoting, booking, tracking, invoicing, and document retrieval for AI agents and integrations. Supports cargo van, box truck, FTL, LTL, and FTL multi-stop modes.",
             "type": "text/plain"
         }
+    },
+    "auth": {
+        "type": "bearer",
+        "bearer": [
+            {
+                "key": "token",
+                "value": "{{warpApiKey}}",
+                "type": "string"
+            }
+        ]
     }
 }
