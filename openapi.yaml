@@ -4,6 +4,19 @@ info:
   version: 1.2.0
   description: Programmatic freight quoting, booking, tracking, invoicing, and document retrieval for AI agents and integrations.
     Supports cargo van, box truck, FTL, LTL, and FTL multi-stop modes.
+  contact:
+    name: Warp API
+    url: https://www.wearewarp.com/freight-api
+    email: developers@wearewarp.com
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+  x-logo:
+    url: https://www.wearewarp.com/warp-logo.svg
+    altText: Warp
+externalDocs:
+  description: 'Warp Freight API guide: full endpoint reference, code samples, MCP server, CLI, sandbox keys.'
+  url: https://www.wearewarp.com/freight-api
 servers:
 - url: https://www.wearewarp.com/api/v1
 components:
@@ -11,7 +24,7 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      description: 'API key issued via scripts/issue-agent-key.ts. Format: wak_live_*'
+      description: 'API key issued instantly (no card required) at https://www.wearewarp.com/agents/account. Format: wak_live_*'
   schemas:
     QuoteResponse:
       type: object
@@ -468,13 +481,25 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-              - origin_zip
-              - destination_zip
-              - pallets
-              - weight_lbs_per_pallet
-              - commodity
-              - pickup_date
+              anyOf:
+              - required:
+                - origin_zip
+                - destination_zip
+                - pallets
+                - weight_lbs_per_pallet
+                - commodity
+                - pickup_date
+                - length_in
+                - width_in
+                - height_in
+              - required:
+                - origin_zip
+                - destination_zip
+                - pallets
+                - weight_lbs_per_pallet
+                - commodity
+                - pickup_date
+                - load_template_id
               properties:
                 origin_zip:
                   type: string
@@ -556,6 +581,163 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/QuoteResponse'
+        '400':
+          description: Validation error or missing dims
+        '502':
+          description: Upstream error
+  /ltl/market-options:
+    post:
+      summary: LTL multi-carrier comparison (~30 carriers)
+      operationId: ltlMarketOptions
+      tags:
+      - Quoting
+      description: 'Returns the multi-carrier LTL spread (every carrier''s rate + transit + a bookable quote_id). Same request
+        body as /ltl/quote. SLOW (~15s): polls every carrier in the marketplace. Keyless requests return display-only rates;
+        with your API key, each carrier''s quote_id is bookable — POST any one of them to /book to book that specific carrier
+        (charges your card).'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              anyOf:
+              - required:
+                - origin_zip
+                - destination_zip
+                - pallets
+                - weight_lbs_per_pallet
+                - commodity
+                - pickup_date
+                - length_in
+                - width_in
+                - height_in
+              - required:
+                - origin_zip
+                - destination_zip
+                - pallets
+                - weight_lbs_per_pallet
+                - commodity
+                - pickup_date
+                - load_template_id
+              properties:
+                origin_zip:
+                  type: string
+                  example: '90012'
+                destination_zip:
+                  type: string
+                  example: '94105'
+                pallets:
+                  type: integer
+                  example: 6
+                pickup_date:
+                  type: string
+                  format: date
+                  example: '2026-04-15'
+                weight_lbs_per_pallet:
+                  type: integer
+                  example: 800
+                freight_class:
+                  type: string
+                  example: '85'
+                  description: Optional. Warp uses FAK (Freight All Kinds) rates -- class doesn't affect pricing. Include
+                    for BOL documentation if known.
+                commodity:
+                  type: string
+                  example: auto parts
+                length_in:
+                  type: integer
+                  example: 48
+                  description: Required when not using a template
+                width_in:
+                  type: integer
+                  example: 40
+                  description: Required when not using a template
+                height_in:
+                  type: integer
+                  example: 48
+                  description: Required when not using a template
+                stackable:
+                  type: boolean
+                  example: false
+                hazmat:
+                  type: boolean
+                  example: false
+                load_template_id:
+                  type: string
+                  example: lt_01JRKZ...
+                  description: Alternative to providing weight/dims/class directly
+                pallet_count:
+                  type: integer
+                  example: 6
+                accessorials:
+                  type: object
+                  description: Optional pickup and delivery accessorial services.
+                  properties:
+                    pickup:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                        - liftgate-pickup
+                        - inside-pickup
+                        - residential-pickup
+                        - limited-access-pickup
+                        - pickup-appointment
+                    delivery:
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                        - liftgate-delivery
+                        - inside-delivery
+                        - residential-delivery
+                        - limited-access-delivery
+                        - delivery-appointment
+      responses:
+        '200':
+          description: Multi-carrier list, sorted by price
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  origin_zip:
+                    type: string
+                  destination_zip:
+                    type: string
+                  pickup_date:
+                    type: string
+                    format: date
+                  market_options:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        rank:
+                          type: integer
+                        carrier_name:
+                          type: string
+                        service_level:
+                          type: string
+                        price_usd:
+                          type: number
+                        transit_days:
+                          type: integer
+                          nullable: true
+                        is_warp:
+                          type: boolean
+                        bookable:
+                          type: boolean
+                        quote_id:
+                          type: string
+                          description: Present when bookable (authed requests only)
+                          example: wq_01KSEC...
+                        option_id:
+                          type: string
+                          description: Upstream marketplace option id
+                  note:
+                    type: string
         '400':
           description: Validation error or missing dims
         '502':
@@ -993,50 +1175,6 @@ paths:
                     type: object
         '401':
           description: Auth failure
-  /cancel:
-    post:
-      summary: Cancel a booking before pickup
-      operationId: cancel
-      tags:
-      - Lifecycle
-      security:
-      - bearerAuth: []
-      description: Marks the local booking cancelled, refunds Stripe (if a charge was made), and best-effort calls upstream
-        cancel.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-              - booking_id
-              properties:
-                booking_id:
-                  type: string
-                  description: shipment_id from book response
-      responses:
-        '200':
-          description: Cancelled
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  cancelled:
-                    type: boolean
-                  shipment_id:
-                    type: string
-                  upstream_cancel:
-                    type: object
-                  refund:
-                    type: object
-        '401':
-          description: Auth failure
-        '404':
-          description: Booking not found
-        '409':
-          description: Already cancelled
   /rate-card:
     get:
       summary: Standard mode rate card + your historical pricing per mode
@@ -1193,7 +1331,10 @@ paths:
       - Multi-stop
       security:
       - bearerAuth: []
-      description: Body forwarded to upstream /freights/quote/multi-stops.
+      description: One truck, one route, multiple stops. The route model is first pickup (pickup_info) → intermediate stops
+        (transits, in order) → final delivery (delivery_info). snake_case keys shown here are translated to the gateway's
+        camelCase (/freights/quote/multi-stops); camelCase equivalents are also accepted. Set vehicle_type to get a priced
+        quote — without it the gateway answers "A rate has not yet been determined for this route".
       requestBody:
         required: true
         content:
@@ -1202,24 +1343,113 @@ paths:
               type: object
               required:
               - pickup_date
-              - stops
+              - pickup_info
+              - transits
+              - delivery_info
+              - list_items
               properties:
                 pickup_date:
                   type: string
                   format: date
-                stops:
+                  example: '2026-06-22'
+                pickup_info:
+                  type: object
+                  required:
+                  - zipcode
+                  description: First pickup stop.
+                  properties:
+                    zipcode:
+                      type: string
+                      example: '90001'
+                transits:
+                  type: array
+                  minItems: 1
+                  description: Intermediate stops between first pickup and final delivery, in route order.
+                  items:
+                    type: object
+                    required:
+                    - zipcode
+                    properties:
+                      zipcode:
+                        type: string
+                        example: '92101'
+                delivery_info:
+                  type: object
+                  required:
+                  - zipcode
+                  description: Final delivery stop.
+                  properties:
+                    zipcode:
+                      type: string
+                      example: '85001'
+                list_items:
                   type: array
                   items:
                     type: object
-                total_pallets:
-                  type: integer
-                total_weight_lbs:
-                  type: integer
+                    description: Freight item. Same field set the single-stop gateway quote uses; send dims in inches (size_unit
+                      IN) and weight in lbs.
+                    properties:
+                      name:
+                        type: string
+                        example: '1'
+                      length:
+                        type: number
+                        example: 48
+                      width:
+                        type: number
+                        example: 40
+                      height:
+                        type: number
+                        example: 48
+                      size_unit:
+                        type: string
+                        example: IN
+                      total_weight:
+                        type: number
+                        example: 5000
+                        description: Total weight across the quantity, not per piece
+                      weight_unit:
+                        type: string
+                        example: lbs
+                      quantity:
+                        type: integer
+                        example: 10
+                      packaging:
+                        type: string
+                        example: pallet
+                      stackable:
+                        type: boolean
+                        example: false
                 vehicle_type:
                   type: string
+                  example: DRY_VAN_53
+                  description: Vehicle code. Optional to the validator but required in practice to resolve a rate.
+                shipment_type:
+                  type: string
+                  example: FTL
       responses:
         '200':
           description: Multi-stop quote returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  quote_id:
+                    type: string
+                    example: PRICING_MULTI_df23163d-2ad1-40c2-94a0-24bf2919a13c
+                  total_charge:
+                    type: number
+                    example: 2281.81
+                  transit_time:
+                    type: integer
+                    example: 39600
+                    description: Seconds
+                  rate_detail:
+                    type: object
+        '400':
+          description: 'Validation failure (gateway message passed through as { error, code: UPSTREAM_ERROR, upstream_status,
+            upstream_response })'
         '401':
           description: Auth failure
         '502':
@@ -1232,7 +1462,9 @@ paths:
       - Multi-stop
       security:
       - bearerAuth: []
-      description: Body forwarded to upstream /freights/booking/multi-stops.
+      description: 'Books the route quoted by /multistop/quote as per-leg shipments: one entry per pickup→delivery pair, each
+        referencing the quoted stop sequence by stop_index. snake_case keys are translated to the gateway''s camelCase (/freights/booking/multi-stops);
+        camelCase equivalents are also accepted. No Stripe charge fires here — multi-stop pricing settles via your Warp account.'
       requestBody:
         required: true
         content:
@@ -1241,22 +1473,1224 @@ paths:
               type: object
               required:
               - quote_id
-              - stops
+              - shipments
               properties:
                 quote_id:
                   type: string
-                stops:
+                  example: PRICING_MULTI_df23163d-2ad1-40c2-94a0-24bf2919a13c
+                  description: From /multistop/quote
+                shipments:
                   type: array
+                  minItems: 2
+                  description: One leg per pickup→delivery pair riding the quoted route.
                   items:
                     type: object
-                reference:
-                  type: string
-                notes:
-                  type: string
+                    required:
+                    - pickup_info
+                    - delivery_info
+                    - list_items
+                    properties:
+                      pickup_info:
+                        type: object
+                        required:
+                        - stop_index
+                        - address
+                        - window_time
+                        properties:
+                          stop_index:
+                            type: integer
+                            description: 'Index into the quoted stop sequence: 0 = the quote''s pickup_info stop, then transits
+                              in order, last = the quote''s delivery_info stop.'
+                          address:
+                            type: object
+                            required:
+                            - zipcode
+                            properties:
+                              street:
+                                type: string
+                              city:
+                                type: string
+                              state:
+                                type: string
+                              zipcode:
+                                type: string
+                                description: Exact field name the gateway validates; zip/zip_code/zipCode are normalized to
+                                  it
+                          window_time:
+                            type: object
+                            required:
+                            - from
+                            - to
+                            properties:
+                              from:
+                                type: string
+                                format: date-time
+                                example: '2026-06-22T08:00:00.000Z'
+                              to:
+                                type: string
+                                format: date-time
+                                example: '2026-06-22T23:59:59.000Z'
+                          contact_name:
+                            type: string
+                          contact_phone:
+                            type: string
+                          contact_email:
+                            type: string
+                      delivery_info:
+                        type: object
+                        required:
+                        - stop_index
+                        - address
+                        - window_time
+                        properties:
+                          stop_index:
+                            type: integer
+                            description: 'Index into the quoted stop sequence: 0 = the quote''s pickup_info stop, then transits
+                              in order, last = the quote''s delivery_info stop.'
+                          address:
+                            type: object
+                            required:
+                            - zipcode
+                            properties:
+                              street:
+                                type: string
+                              city:
+                                type: string
+                              state:
+                                type: string
+                              zipcode:
+                                type: string
+                                description: Exact field name the gateway validates; zip/zip_code/zipCode are normalized to
+                                  it
+                          window_time:
+                            type: object
+                            required:
+                            - from
+                            - to
+                            properties:
+                              from:
+                                type: string
+                                format: date-time
+                                example: '2026-06-22T08:00:00.000Z'
+                              to:
+                                type: string
+                                format: date-time
+                                example: '2026-06-22T23:59:59.000Z'
+                          contact_name:
+                            type: string
+                          contact_phone:
+                            type: string
+                          contact_email:
+                            type: string
+                      list_items:
+                        type: array
+                        items:
+                          type: object
+                          description: Freight item. Same field set the single-stop gateway quote uses; send dims in inches
+                            (size_unit IN) and weight in lbs.
+                          properties:
+                            name:
+                              type: string
+                              example: '1'
+                            length:
+                              type: number
+                              example: 48
+                            width:
+                              type: number
+                              example: 40
+                            height:
+                              type: number
+                              example: 48
+                            size_unit:
+                              type: string
+                              example: IN
+                            total_weight:
+                              type: number
+                              example: 5000
+                              description: Total weight across the quantity, not per piece
+                            weight_unit:
+                              type: string
+                              example: lbs
+                            quantity:
+                              type: integer
+                              example: 10
+                            packaging:
+                              type: string
+                              example: pallet
+                            stackable:
+                              type: boolean
+                              example: false
+                        description: Items riding this leg
       responses:
         '200':
-          description: Multi-stop booking confirmed
+          description: Multi-stop booking confirmed (gateway response returned verbatim)
+        '400':
+          description: 'Validation failure (gateway message passed through as { error, code: UPSTREAM_ERROR, upstream_status,
+            upstream_response })'
         '401':
           description: Auth failure
         '502':
           description: Upstream error
+  /tools/freight-class:
+    post:
+      summary: Calculate NMFTA density-based LTL freight class
+      operationId: freightClassCalc
+      tags:
+      - Tools
+      description: Public free utility. No auth required for first 60 req/hr per IP. wak_test_* keys get 1,000/hr; wak_live_*
+        keys get 10,000/hr. CORS open. Returns data + meta envelope with rate-limit, docs, upgrade URL, and attribution.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - length
+              - width
+              - height
+              - weight
+              properties:
+                length:
+                  type: number
+                  example: 48
+                  description: Length (default inches; use units=cm for centimeters)
+                width:
+                  type: number
+                  example: 40
+                  description: Width (default inches)
+                height:
+                  type: number
+                  example: 48
+                  description: Height (default inches)
+                weight:
+                  type: number
+                  example: 500
+                  description: Total weight (default pounds; use weight_unit=kg for kilograms)
+                units:
+                  type: string
+                  enum:
+                  - in
+                  - cm
+                  description: Defaults to in
+                weight_unit:
+                  type: string
+                  enum:
+                  - lb
+                  - kg
+                  description: Defaults to lb
+      responses:
+        '200':
+          description: Computed freight class with rate-limit meta
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      freight_class:
+                        type: string
+                        example: '100'
+                      density_pcf:
+                        type: number
+                        example: 9.42
+                      cubic_feet:
+                        type: number
+                        example: 53.33
+                      class_band:
+                        type: string
+                        example: Standard
+                      note:
+                        type: string
+                  meta:
+                    type: object
+                    properties:
+                      request_id:
+                        type: string
+                      tier:
+                        type: string
+                        enum:
+                        - anon
+                        - sandbox
+                        - live
+                      rate_limit:
+                        type: object
+                        properties:
+                          limit:
+                            type: integer
+                          remaining:
+                            type: integer
+                          reset_at:
+                            type: string
+                            format: date-time
+                      docs:
+                        type: string
+                      upgrade:
+                        type: string
+                      attribution:
+                        type: string
+        '400':
+          description: BAD_INPUT — missing/invalid dimensions or weight
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: RATE_LIMITED — tier limit reached; meta.upgrade points to the next tier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Calculate NMFTA freight class via query params
+      operationId: freightClassCalcGet
+      tags:
+      - Tools
+      description: Convenience GET. Same response shape as POST.
+      parameters:
+      - name: length
+        in: query
+        required: true
+        schema:
+          type: number
+        example: 48
+      - name: width
+        in: query
+        required: true
+        schema:
+          type: number
+        example: 40
+      - name: height
+        in: query
+        required: true
+        schema:
+          type: number
+        example: 48
+      - name: weight
+        in: query
+        required: true
+        schema:
+          type: number
+        example: 500
+      - name: units
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - in
+          - cm
+      - name: weight_unit
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - lb
+          - kg
+      responses:
+        '200':
+          description: Computed freight class
+        '400':
+          description: BAD_INPUT
+        '429':
+          description: RATE_LIMITED
+  /tools/density:
+    post:
+      summary: Calculate freight density (PCF) + freight class
+      operationId: densityCalc
+      tags:
+      - Tools
+      description: Public free utility. 60 req/hr anon · 1,000/hr sandbox · 10,000/hr live. CORS open. Returns data + meta
+        envelope.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - length
+              - width
+              - height
+              - weight
+              properties:
+                length:
+                  type: number
+                  example: 48
+                width:
+                  type: number
+                  example: 40
+                height:
+                  type: number
+                  example: 48
+                weight:
+                  type: number
+                  example: 500
+                pieces:
+                  type: number
+                  example: 1
+                  description: Optional, defaults to 1
+                units:
+                  type: string
+                  enum:
+                  - in
+                  - cm
+                weight_unit:
+                  type: string
+                  enum:
+                  - lb
+                  - kg
+      responses:
+        '200':
+          description: Density (PCF) + cubic feet + freight class with rate-limit meta
+        '400':
+          description: BAD_INPUT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: RATE_LIMITED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Calculate freight density via query params
+      operationId: densityCalcGet
+      tags:
+      - Tools
+      parameters:
+      - name: length
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: width
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: height
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: weight
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: pieces
+        in: query
+        required: false
+        schema:
+          type: number
+      - name: units
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - in
+          - cm
+      - name: weight_unit
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - lb
+          - kg
+      responses:
+        '200':
+          description: Density + cubic feet + freight class
+        '400':
+          description: BAD_INPUT
+        '429':
+          description: RATE_LIMITED
+  /tools/dim-weight:
+    post:
+      summary: Calculate dimensional weight + billable weight
+      operationId: dimWeightCalc
+      tags:
+      - Tools
+      description: Public free utility. Returns dim weight, actual weight, and billable max(dim, actual). Default dim factor
+        139 (US ground). 60 req/hr anon · 1,000/hr sandbox · 10,000/hr live. CORS open.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - length
+              - width
+              - height
+              - weight
+              properties:
+                length:
+                  type: number
+                  example: 24
+                width:
+                  type: number
+                  example: 18
+                height:
+                  type: number
+                  example: 12
+                weight:
+                  type: number
+                  example: 8
+                dim_factor:
+                  type: number
+                  example: 139
+                  description: 139 ground · 166 air · 250 metric
+                units:
+                  type: string
+                  enum:
+                  - in
+                  - cm
+                weight_unit:
+                  type: string
+                  enum:
+                  - lb
+                  - kg
+      responses:
+        '200':
+          description: Dim weight + actual + billable with rate-limit meta
+        '400':
+          description: BAD_INPUT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: RATE_LIMITED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Calculate dim weight via query params
+      operationId: dimWeightCalcGet
+      tags:
+      - Tools
+      parameters:
+      - name: length
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: width
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: height
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: weight
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: dim_factor
+        in: query
+        required: false
+        schema:
+          type: number
+      responses:
+        '200':
+          description: Dim weight + billable
+        '400':
+          description: BAD_INPUT
+        '429':
+          description: RATE_LIMITED
+  /tools/cbm:
+    post:
+      summary: Calculate cubic meters (CBM) + volumetric weight for ocean / air
+      operationId: cbmCalc
+      tags:
+      - Tools
+      description: Public free utility. Returns CBM, total CBM, and volumetric weight for both air (×167) and ocean (×1000)
+        billing. 60 req/hr anon · 1,000/hr sandbox · 10,000/hr live. CORS open.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - length
+              - width
+              - height
+              properties:
+                length:
+                  type: number
+                  example: 120
+                width:
+                  type: number
+                  example: 100
+                height:
+                  type: number
+                  example: 150
+                qty:
+                  type: number
+                  example: 4
+                  description: Defaults to 1
+                units:
+                  type: string
+                  enum:
+                  - cm
+                  - in
+                  description: Defaults to cm
+      responses:
+        '200':
+          description: CBM + total CBM + air/ocean volumetric weight with rate-limit meta
+        '400':
+          description: BAD_INPUT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: RATE_LIMITED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Calculate CBM via query params
+      operationId: cbmCalcGet
+      tags:
+      - Tools
+      parameters:
+      - name: length
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: width
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: height
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: qty
+        in: query
+        required: false
+        schema:
+          type: number
+      - name: units
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - cm
+          - in
+      responses:
+        '200':
+          description: CBM + total + volumetric weights
+        '400':
+          description: BAD_INPUT
+        '429':
+          description: RATE_LIMITED
+  /tools/rate-per-mile:
+    post:
+      summary: Compute $/mile + vs-benchmark comparison
+      operationId: ratePerMileCalc
+      tags:
+      - Tools
+      description: Public free utility. Returns rate per mile plus a comparison against published 2026 averages (LTL $2.80/mi,
+        TL $3.20/mi). 60 req/hr anon · 1,000/hr sandbox · 10,000/hr live. CORS open.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - total_cost
+              - miles
+              properties:
+                total_cost:
+                  type: number
+                  example: 1450
+                  description: Total invoice in USD
+                miles:
+                  type: number
+                  example: 480
+                  description: Lane distance in miles
+                mode:
+                  type: string
+                  enum:
+                  - ltl
+                  - tl
+                  description: Defaults to tl
+      responses:
+        '200':
+          description: Rate + benchmark + vs_benchmark_pct
+        '400':
+          description: BAD_INPUT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: RATE_LIMITED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Compute rate per mile via query params
+      operationId: ratePerMileCalcGet
+      tags:
+      - Tools
+      parameters:
+      - name: total_cost
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: miles
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: mode
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - ltl
+          - tl
+      responses:
+        '200':
+          description: Rate + benchmark
+        '400':
+          description: BAD_INPUT
+        '429':
+          description: RATE_LIMITED
+  /tools/pallet-weight:
+    post:
+      summary: Total pallet weight from cases + tare
+      operationId: palletWeightCalc
+      tags:
+      - Tools
+      description: Public free utility. Adds case weight × case count + pallet tare × pallet count. Returns total and per-pallet
+        weight. 60 req/hr anon · 1,000/hr sandbox · 10,000/hr live. CORS open.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - cases
+              - weight_per_case
+              properties:
+                cases:
+                  type: number
+                  example: 40
+                weight_per_case:
+                  type: number
+                  example: 25
+                  description: Pounds per case
+                pallet_tare_lb:
+                  type: number
+                  example: 45
+                  description: Empty pallet weight; defaults to 45 for 48x40 hardwood
+                pallets:
+                  type: number
+                  example: 2
+                  description: Defaults to 1
+      responses:
+        '200':
+          description: Total + per-pallet weight
+        '400':
+          description: BAD_INPUT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: RATE_LIMITED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Calculate pallet weight via query params
+      operationId: palletWeightCalcGet
+      tags:
+      - Tools
+      parameters:
+      - name: cases
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: weight_per_case
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: pallet_tare_lb
+        in: query
+        required: false
+        schema:
+          type: number
+      - name: pallets
+        in: query
+        required: false
+        schema:
+          type: number
+      responses:
+        '200':
+          description: Total + per-pallet weight
+        '400':
+          description: BAD_INPUT
+        '429':
+          description: RATE_LIMITED
+  /tools/truck-payload:
+    post:
+      summary: Truck / van payload analysis with utilization %
+      operationId: truckPayloadCalc
+      tags:
+      - Tools
+      description: Public free utility. Given cargo weight (and optional volume + pallet count) and a vehicle type, returns
+        remaining capacity and utilization percentages. 60 req/hr anon · 1,000/hr sandbox · 10,000/hr live. CORS open.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - cargo_weight
+              properties:
+                cargo_weight:
+                  type: number
+                  example: 4500
+                  description: Cargo weight in pounds
+                vehicle:
+                  type: string
+                  enum:
+                  - cargo_van
+                  - sprinter_van
+                  - box_truck_16
+                  - box_truck_26
+                  - dry_van_53
+                  description: Defaults to dry_van_53
+                cargo_volume:
+                  type: number
+                  example: 1100
+                  description: Optional cubic feet
+                cargo_pallets:
+                  type: number
+                  example: 8
+                  description: Optional pallet count
+      responses:
+        '200':
+          description: Vehicle specs + remaining capacity + utilization
+        '400':
+          description: BAD_INPUT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: RATE_LIMITED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Truck payload via query params
+      operationId: truckPayloadCalcGet
+      tags:
+      - Tools
+      parameters:
+      - name: cargo_weight
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: vehicle
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - cargo_van
+          - sprinter_van
+          - box_truck_16
+          - box_truck_26
+          - dry_van_53
+      - name: cargo_volume
+        in: query
+        required: false
+        schema:
+          type: number
+      - name: cargo_pallets
+        in: query
+        required: false
+        schema:
+          type: number
+      responses:
+        '200':
+          description: Vehicle + remaining capacity
+        '400':
+          description: BAD_INPUT
+        '429':
+          description: RATE_LIMITED
+  /tools/freight-insurance:
+    post:
+      summary: Estimate cargo insurance premium by commodity
+      operationId: freightInsuranceCalc
+      tags:
+      - Tools
+      description: Public free utility. Premium = max($25, cargo_value × rate%); cost-per-$100 and 2% deductible. 60 req/hr
+        anon · 1,000/hr sandbox · 10,000/hr live. CORS open.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - cargo_value
+              properties:
+                cargo_value:
+                  type: number
+                  example: 50000
+                  description: Insured cargo value in USD
+                commodity:
+                  type: string
+                  enum:
+                  - general
+                  - electronics
+                  - fragile
+                  - perishable
+                  description: Defaults to general
+      responses:
+        '200':
+          description: Premium + cost-per-$100 + estimated deductible
+        '400':
+          description: BAD_INPUT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: RATE_LIMITED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Cargo insurance premium via query params
+      operationId: freightInsuranceCalcGet
+      tags:
+      - Tools
+      parameters:
+      - name: cargo_value
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: commodity
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - general
+          - electronics
+          - fragile
+          - perishable
+      responses:
+        '200':
+          description: Premium
+        '400':
+          description: BAD_INPUT
+        '429':
+          description: RATE_LIMITED
+  /tools/fuel-surcharge:
+    post:
+      summary: LTL fuel surcharge for the 6 largest US carriers
+      operationId: fuelSurchargeCalc
+      tags:
+      - Tools
+      description: Public free utility. Uses each carrier's published FSC at the current DOE on-highway diesel baseline, scales
+        linearly with the supplied diesel_price. 60 req/hr anon · 1,000/hr sandbox · 10,000/hr live. CORS open.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - base_rate
+              - carrier
+              properties:
+                base_rate:
+                  type: number
+                  example: 1000
+                  description: Base linehaul rate (USD)
+                carrier:
+                  type: string
+                  enum:
+                  - fedex_freight
+                  - old_dominion
+                  - xpo
+                  - estes
+                  - saia
+                  - abf
+                diesel_price:
+                  type: number
+                  example: 5.5
+                  description: Optional $/gal. Defaults to cached DOE baseline.
+      responses:
+        '200':
+          description: Effective surcharge % + dollar impact + DOE baseline
+        '400':
+          description: BAD_INPUT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: RATE_LIMITED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Fuel surcharge via query params
+      operationId: fuelSurchargeCalcGet
+      tags:
+      - Tools
+      parameters:
+      - name: base_rate
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: carrier
+        in: query
+        required: true
+        schema:
+          type: string
+          enum:
+          - fedex_freight
+          - old_dominion
+          - xpo
+          - estes
+          - saia
+          - abf
+      - name: diesel_price
+        in: query
+        required: false
+        schema:
+          type: number
+      responses:
+        '200':
+          description: Surcharge + total
+        '400':
+          description: BAD_INPUT
+        '429':
+          description: RATE_LIMITED
+  /tools/accessorial:
+    post:
+      summary: LTL accessorial fee ranges + invoice impact
+      operationId: accessorialCalc
+      tags:
+      - Tools
+      description: Public free utility. Pass an array of accessorial slugs (and optional base_rate). Returns industry-standard
+        fee ranges, totals, and percent impact. 60 req/hr anon · 1,000/hr sandbox · 10,000/hr live. CORS open.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - selected
+              properties:
+                selected:
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                    - liftgate_pickup
+                    - liftgate_delivery
+                    - residential_delivery
+                    - inside_delivery
+                    - appointment
+                    - reweigh
+                    - reclassification
+                    - limited_access
+                  example:
+                  - liftgate_pickup
+                  - residential_delivery
+                  - appointment
+                base_rate:
+                  type: number
+                  example: 850
+                  description: Optional base rate; enables invoice + percent fields in response
+      responses:
+        '200':
+          description: Selected accessorials + totals
+        '400':
+          description: BAD_INPUT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: RATE_LIMITED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Accessorial fees via query params (comma-separated)
+      operationId: accessorialCalcGet
+      tags:
+      - Tools
+      parameters:
+      - name: selected
+        in: query
+        required: true
+        schema:
+          type: string
+        example: liftgate_pickup,residential_delivery,appointment
+        description: Comma-separated slugs
+      - name: base_rate
+        in: query
+        required: false
+        schema:
+          type: number
+      responses:
+        '200':
+          description: Accessorial totals
+        '400':
+          description: BAD_INPUT
+        '429':
+          description: RATE_LIMITED
+  /tools/container-load:
+    post:
+      summary: Container / trailer pallet-fit analysis
+      operationId: containerLoadCalc
+      tags:
+      - Tools
+      description: Public free utility. Geometric pallet-fit for shipping containers and trailers. Tests both pallet orientations,
+        double-stack height check, floor + volume utilization, and weight-limited flag. 60 req/hr anon · 1,000/hr sandbox
+        · 10,000/hr live. CORS open.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - pallet_length
+              - pallet_width
+              - pallet_height
+              - pallet_weight
+              properties:
+                pallet_length:
+                  type: number
+                  example: 48
+                  description: Inches
+                pallet_width:
+                  type: number
+                  example: 40
+                  description: Inches
+                pallet_height:
+                  type: number
+                  example: 56
+                  description: Loaded pallet height, inches
+                pallet_weight:
+                  type: number
+                  example: 1200
+                  description: Pounds
+                container:
+                  type: string
+                  enum:
+                  - container_20ft
+                  - container_40ft
+                  - container_40ft_hc
+                  - trailer_53ft
+                  description: Defaults to trailer_53ft
+      responses:
+        '200':
+          description: Pallets per floor + stacked + utilization
+        '400':
+          description: BAD_INPUT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: RATE_LIMITED
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      summary: Container load via query params
+      operationId: containerLoadCalcGet
+      tags:
+      - Tools
+      parameters:
+      - name: pallet_length
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: pallet_width
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: pallet_height
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: pallet_weight
+        in: query
+        required: true
+        schema:
+          type: number
+      - name: container
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - container_20ft
+          - container_40ft
+          - container_40ft_hc
+          - trailer_53ft
+      responses:
+        '200':
+          description: Container load analysis
+        '400':
+          description: BAD_INPUT
+        '429':
+          description: RATE_LIMITED
