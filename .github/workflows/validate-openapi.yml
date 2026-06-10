@@ -31,7 +31,7 @@ jobs:
           yq -o=json '.' openapi.yaml | jq -S '.paths | keys' > local-paths.json
           jq -S '.paths | keys' live.json > live-paths.json
           if ! diff -u local-paths.json live-paths.json; then
-            echo "::warning::openapi.yaml path list drifted from production. Re-mirror with: curl https://www.wearewarp.com/api/v1/openapi.json | yq -P > openapi.yaml"
+            echo "::warning::openapi.yaml path list drifted from production. Re-mirror with: python3 scripts/mirror.py"
             exit 1
           fi
           echo "Path list matches production."
