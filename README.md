@@ -42,6 +42,7 @@ curl -X POST https://www.wearewarp.com/api/v1/ltl/quote \
 |---|---|
 | [`openapi.yaml`](./openapi.yaml) | OpenAPI 3.1 spec, mirrored from production |
 | [`postman/warp-freight-api.postman_collection.json`](./postman/warp-freight-api.postman_collection.json) | Postman collection v2.1.0 — drag-and-drop import into Postman, Insomnia, or Bruno. Generated from `openapi.yaml` via `npx openapi-to-postmanv2`. |
+| [`scripts/mirror.py`](./scripts/mirror.py) | Re-mirrors `openapi.yaml` from the production spec and regenerates the Postman collection. Run `python3 scripts/mirror.py` (needs PyYAML and Node). |
 | [`examples/curl/`](./examples/curl) | bash + curl quickstarts: sandbox key, quote, book, track |
 | [`examples/python/`](./examples/python) | Python via `requests`, end-to-end quote → book → track |
 | [`examples/node/`](./examples/node) | Node.js (≥18) using native `fetch`, no dependencies |
